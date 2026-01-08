@@ -10,8 +10,14 @@ release/
 build/
 *.app
 *.dmg
-*.zip
 *.tar.gz
+
+# Auto-extracted SDK directories (can be regenerated from native_sdk)
+host/
+runtime/
+
+# Compiled demo executable
+demo.exe
 
 # Cache directories
 cache/
