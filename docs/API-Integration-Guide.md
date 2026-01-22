@@ -2,7 +2,7 @@
 
 ## 概述
 
-WebGLHost Native SDK 提供了一套完整的 C++ API，用于在 Windows 桌面应用中集成和管理 WebGL 游戏小程序。本文档详细介绍如何使用 SDK 的核心 API。
+WebGLHost Native SDK 提供了一套完整的 C++ API，用于在 Windows 和 macOS 桌面应用中集成和管理 WebGL 游戏小程序。本文档详细介绍如何使用 SDK 的核心 API。
 
 ## 目录
 
@@ -21,10 +21,17 @@ WebGLHost Native SDK 提供了一套完整的 C++ API，用于在 Windows 桌面
 
 ### 1. 环境要求
 
+#### Windows
 - **操作系统**: Windows 10/11 (x64)
 - **编译器**: Visual Studio 2019 或更高版本
 - **C++ 标准**: C++17 或更高
 - **依赖库**: ws2_32.lib (Windows Sockets)
+
+#### macOS
+- **操作系统**: macOS 10.15+ (Catalina 或更高版本)
+- **编译器**: Xcode Command Line Tools (clang)
+- **C++ 标准**: C++17 或更高
+- **依赖库**: 系统框架 (自动链接)
 
 ### 2. 集成步骤
 
@@ -40,15 +47,20 @@ WebGLHost Native SDK 提供了一套完整的 C++ API，用于在 Windows 桌面
 
 #### 步骤 2: 链接库
 
-在项目中链接 `ws2_32.lib`：
-
+**Windows:**
 ```cmake
 target_link_libraries(your_app ws2_32)
 ```
 
-#### 步骤 3: 加载 DLL
+**macOS:**
+不需要显式链接系统库，CMake 会自动处理。
 
+#### 步骤 3: 加载库文件
+
+**Windows:**
 ```cpp
+#include <windows.h>
+
 HMODULE hDll = LoadLibraryA("host\\webglhost_export.dll");
 if (!hDll) {
     // Handle error
@@ -57,12 +69,34 @@ if (!hDll) {
 }
 ```
 
+**macOS:**
+```cpp
+#include <dlfcn.h>
+
+void* hDll = dlopen("host/libwebglhost_export.dylib", RTLD_LAZY);
+if (!hDll) {
+    // Handle error
+    std::cerr << "Failed to load dylib: " << dlerror() << std::endl;
+    return 1;
+}
+```
+
 #### 步骤 4: 获取服务实例
 
+**Windows:**
 ```cpp
 typedef IBrowsingService* (*GetBrowsingServiceFunc)();
-GetBrowsingServiceFunc getBrowsingService = 
+GetBrowsingServiceFunc getBrowsingService =
     (GetBrowsingServiceFunc)GetProcAddress(hDll, "GetBrowsingService");
+
+IBrowsingService* service = getBrowsingService();
+```
+
+**macOS:**
+```cpp
+typedef IBrowsingService* (*GetBrowsingServiceFunc)();
+GetBrowsingServiceFunc getBrowsingService =
+    (GetBrowsingServiceFunc)dlsym(hDll, "GetBrowsingService");
 
 IBrowsingService* service = getBrowsingService();
 ```
@@ -413,7 +447,11 @@ virtual bool OnCommonEventHappened(const char* event_name, int32_t callback_id,
 以下是一个完整的集成示例，展示了如何初始化 SDK、启动游戏、处理事件和清理资源。
 
 ```cpp
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 #include <iostream>
 #include "IBrowsingService.h"
 #include "IAppletManagerV3.h"
@@ -480,29 +518,50 @@ void OnLaunchComplete(const char* appId, int resultCode, const char* errorDesc) 
 }
 
 int main() {
-    // 1. Load DLL
+    // 1. Load library
+#ifdef _WIN32
     HMODULE hDll = LoadLibraryA("host\\webglhost_export.dll");
     if (!hDll) {
-        std::cerr << "Failed to load DLL" << std::endl;
+        std::cerr << "Failed to load DLL: " << GetLastError() << std::endl;
         return 1;
     }
+#else
+    void* hDll = dlopen("host/libwebglhost_export.dylib", RTLD_LAZY);
+    if (!hDll) {
+        std::cerr << "Failed to load dylib: " << dlerror() << std::endl;
+        return 1;
+    }
+#endif
     
     // 2. Get service factory
     typedef IBrowsingService* (*GetBrowsingServiceFunc)();
-    GetBrowsingServiceFunc getBrowsingService = 
+#ifdef _WIN32
+    GetBrowsingServiceFunc getBrowsingService =
         (GetBrowsingServiceFunc)GetProcAddress(hDll, "GetBrowsingService");
-    
     if (!getBrowsingService) {
         std::cerr << "Failed to get GetBrowsingService" << std::endl;
         FreeLibrary(hDll);
         return 1;
     }
+#else
+    GetBrowsingServiceFunc getBrowsingService =
+        (GetBrowsingServiceFunc)dlsym(hDll, "GetBrowsingService");
+    if (!getBrowsingService) {
+        std::cerr << "Failed to get GetBrowsingService: " << dlerror() << std::endl;
+        dlclose(hDll);
+        return 1;
+    }
+#endif
     
     // 3. Create service
     IBrowsingService* service = getBrowsingService();
     if (!service) {
         std::cerr << "Failed to create service" << std::endl;
+#ifdef _WIN32
         FreeLibrary(hDll);
+#else
+        dlclose(hDll);
+#endif
         return 1;
     }
     
@@ -518,15 +577,23 @@ int main() {
     
     MyServiceHandler handler;
     int result = service->InitilizeBrowsingCore(
-        config, 
-        "runtime\\webglhost-runtime.exe", 
+        config,
+#ifdef _WIN32
+        "runtime\\webglhost-runtime.exe",
+#else
+        "runtime/webglhost-runtime.app",
+#endif
         &handler
     );
-    
+
     if (result != 0) {
         std::cerr << "Initialization failed: " << result << std::endl;
         service->Release();
+#ifdef _WIN32
         FreeLibrary(hDll);
+#else
+        dlclose(hDll);
+#endif
         return 1;
     }
     
@@ -693,8 +760,12 @@ service->UninitializeBrowsingCore();
 // 4. Release service
 service->Release();
 
-// 5. Unload DLL
+// 5. Unload library
+#ifdef _WIN32
 FreeLibrary(hDll);
+#else
+dlclose(hDll);
+#endif
 ```
 
 ### 2. 异步操作
@@ -811,11 +882,12 @@ WIUnknown (基础接口)
 
 ### B. 典型调用流程
 
+**Windows:**
 ```
-1. LoadLibrary("webglhost_export.dll")
+1. LoadLibrary("host\\webglhost_export.dll")
 2. GetProcAddress("GetBrowsingService")
 3. service = GetBrowsingService()
-4. service->InitilizeBrowsingCore(config, runtime, handler)
+4. service->InitilizeBrowsingCore(config, "runtime\\webglhost-runtime.exe", handler)
 5. service->QueryInterface("IAppletManagerV3", &appletManager)
 6. appletManager->LaunchApplet(appId, config, len, callback)
 7. [Wait for launch callback]
@@ -825,6 +897,23 @@ WIUnknown (基础接口)
 11. service->UninitializeBrowsingCore()
 12. service->Release()
 13. FreeLibrary(hDll)
+```
+
+**macOS:**
+```
+1. dlopen("host/libwebglhost_export.dylib", RTLD_LAZY)
+2. dlsym(hDll, "GetBrowsingService")
+3. service = GetBrowsingService()
+4. service->InitilizeBrowsingCore(config, "runtime/webglhost-runtime.app", handler)
+5. service->QueryInterface("IAppletManagerV3", &appletManager)
+6. appletManager->LaunchApplet(appId, config, len, callback)
+7. [Wait for launch callback]
+8. [Game runs, handle events via ICoreServiceHandler]
+9. appletManager->CloseApplet(appId)
+10. appletManager->Release()
+11. service->UninitializeBrowsingCore()
+12. service->Release()
+13. dlclose(hDll)
 ```
 
 ### C. JSON 配置示例

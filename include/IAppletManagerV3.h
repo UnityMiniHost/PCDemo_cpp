@@ -17,6 +17,15 @@ typedef void (*LaunchCallback)(
     const char* error_desc
 );
 
+// JsApi handler - handles JsApi calls from applet
+typedef bool (*JsApiHandler)(
+    const char* app_id,
+    const char* api_name,
+    const char* data,
+    size_t data_size,
+    int task_id
+);
+
 // Event handler - handles events from applet
 typedef bool (*EventHandler)(
     const char* event_name,
@@ -38,8 +47,18 @@ interface IAppletManagerV3 : public WIUnknown {
     // Close applet
     virtual void CloseApplet(const char* app_id) = 0;
     
+    // Set JsApi handler
+    virtual void SetJsApiHandler(JsApiHandler jsapi_handler) = 0;
+    
     // Set applet event handler
     virtual void SetAppletEventHandler(EventHandler event_handler) = 0;
+    
+    // Send JsApi or event response
+    virtual void SendJsApiOrEventResponse(
+        int task_id,
+        const char* data,
+        size_t data_size
+    ) = 0;
     
     // Call applet command (optional, for future extensions)
     virtual void CallAppletCommand(

@@ -6,8 +6,15 @@ WebGLHost Native SDK 允许您在 Windows 桌面应用中集成和运行 WebGL �
 
 ## 系统要求
 
+### Windows
 - **操作系统**: Windows 10/11 (64位)
 - **开发工具**: Visual Studio 2019 或更高版本
+- **C++ 标准**: C++17
+- **CMake**: 3.15 或更高版本
+
+### macOS
+- **操作系统**: macOS 10.15+ (Catalina 或更高版本)
+- **开发工具**: Xcode Command Line Tools
 - **C++ 标准**: C++17
 - **CMake**: 3.15 或更高版本
 
@@ -37,10 +44,12 @@ demo/
 │   ├── runtime.z02                # 运行时文件（分片压缩包 2）
 │   ├── runtime.z03                # 运行时文件（分片压缩包 3）
 │   └── runtime.z04                # 运行时文件（分片压缩包 4）
-├── host/                          # DLL 目录（自动解压）
-│   └── webglhost_export.dll       # SDK 核心 DLL
+├── host/                          # 库文件目录（自动解压）
+│   ├── webglhost_export.dll       # Windows SDK 核心 DLL
+│   └── libwebglhost_export.dylib  # macOS SDK 核心库（通用二进制）
 ├── runtime/                       # 运行时环境（自动解压）
-│   └── webglhost-runtime.exe      # 运行时可执行文件
+│   ├── webglhost-runtime.exe      # Windows 运行时可执行文件
+│   └── webglhost-runtime.app      # macOS 运行时应用程序包
 ├── demo.cpp                       # 示例源码
 ├── CMakeLists.txt                 # CMake 配置
 └── README.md                      # 项目说明
@@ -54,6 +63,7 @@ demo/
 
 如果您想先体验 SDK 的功能，可以直接运行我们提供的示例程序：
 
+**Windows:**
 ```bat
 # 进入 demo 目录
 cd demo
@@ -62,8 +72,17 @@ cd demo
 scripts\build-and-run.bat
 ```
 
+**macOS:**
+```bash
+# 进入 demo 目录
+cd demo
+
+# 一键构建并运行
+./scripts/build-and-run.sh
+```
+
 这将：
-1. 编译 `demo.cpp` 生成 `demo.exe`
+1. 编译 `demo.cpp` 生成可执行文件
 2. 自动运行示例程序
 3. 启动一个测试游戏
 
@@ -108,7 +127,11 @@ target_link_libraries(your_app ws2_32)
 以下是一个最简单的集成示例：
 
 ```cpp
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 #include <iostream>
 #include "IBrowsingService.h"
 #include "IAppletManagerV3.h"
@@ -132,24 +155,24 @@ public:
     INT QueryInterface(const char* type, void** ppvObject) override { return 0; }
     ULONG AddRef(void) override { return 1; }
     ULONG Release(void) override { return 1; }
-    
+
     void OnContextInitialized() override {
         std::cout << "初始化完成" << std::endl;
     }
-    
+
     void OnServiceDisconnected() override {
         std::cout << "服务断开" << std::endl;
         g_shouldExit = true;
     }
-    
+
     bool OnCommonEventHappened(const char* event_name, int32_t callback_id,
                                const char* data, const unsigned int data_size) override {
         std::cout << "事件: " << event_name << std::endl;
-        
+
         if (strcmp(event_name, "game_exited") == 0) {
             g_shouldExit = true;
         }
-        
+
         return true;
     }
 };
@@ -157,10 +180,10 @@ public:
 // 启动回调
 void OnLaunchComplete(const char* appId, int resultCode, const char* errorDesc) {
     std::cout << "启动完成，结果码: " << resultCode << std::endl;
-    
+
     g_launchCompleted = true;
     g_launchResultCode = resultCode;
-    
+
     if (resultCode != 0) {
         std::cerr << "启动失败: " << errorDesc << std::endl;
         g_shouldExit = true;
@@ -168,16 +191,28 @@ void OnLaunchComplete(const char* appId, int resultCode, const char* errorDesc) 
 }
 
 int main() {
-    // 1. 加载 DLL
+    // 1. 加载库文件
+#ifdef _WIN32
     HMODULE hDll = LoadLibraryA("host\\webglhost_export.dll");
     if (!hDll) {
         std::cerr << "加载 DLL 失败" << std::endl;
         return 1;
     }
-    
+#else
+    void* hDll = dlopen("host/libwebglhost_export.dylib", RTLD_LAZY);
+    if (!hDll) {
+        std::cerr << "加载 dylib 失败: " << dlerror() << std::endl;
+        return 1;
+    }
+#endif
+
     // 2. 获取服务
     typedef IBrowsingService* (*GetBrowsingServiceFunc)();
+#ifdef _WIN32
     auto getBrowsingService = (GetBrowsingServiceFunc)GetProcAddress(hDll, "GetBrowsingService");
+#else
+    auto getBrowsingService = (GetBrowsingServiceFunc)dlsym(hDll, "GetBrowsingService");
+#endif
     IBrowsingService* service = getBrowsingService();
     
     // 3. 初始化
@@ -188,9 +223,13 @@ int main() {
         "accessToken": "%s",
         "debug": true
     })", SDK_KEY, SDK_SECRET, ACCESS_TOKEN);
-    
+
     MyHandler handler;
+#ifdef _WIN32
     service->InitilizeBrowsingCore(config, "runtime\\webglhost-runtime.exe", &handler);
+#else
+    service->InitilizeBrowsingCore(config, "runtime/webglhost-runtime.app", &handler);
+#endif
     
     // 4. 获取小程序管理器
     IAppletManagerV3* appletManager = nullptr;
@@ -228,8 +267,13 @@ int main() {
     appletManager->Release();
     service->UninitializeBrowsingCore();
     service->Release();
+
+#ifdef _WIN32
     FreeLibrary(hDll);
-    
+#else
+    dlclose(hDll);
+#endif
+
     return 0;
 }
 ```
@@ -305,14 +349,18 @@ int main() {
 
 ## 常见问题
 
-### Q1: DLL 加载失败
+### Q1: 库文件加载失败
 
-**错误**: `Failed to load DLL: 126`
+**Windows错误**: `Failed to load DLL: 126`
+
+**macOS错误**: `Failed to load dylib: dlopen failed`
 
 **解决方案**:
-1. 确认 `host/webglhost_export.dll` 存在
-2. 确认 DLL 与程序架构匹配（都是 x64）
-3. 检查是否缺少 Visual C++ Redistributable
+1. **Windows**: 确认 `host/webglhost_export.dll` 存在
+2. **macOS**: 确认 `host/libwebglhost_export.dylib` 存在
+3. 确认库文件与程序架构匹配（都是 x64/arm64）
+4. **Windows**: 检查是否缺少 Visual C++ Redistributable
+5. **macOS**: 检查文件权限和代码签名
 
 ### Q2: 初始化失败
 
@@ -339,10 +387,19 @@ int main() {
 
 **解决方案**:
 1. 构建和运行脚本会自动从 `native_sdk/` 解压 runtime
-2. 如果自动解压失败，请检查 `native_sdk/runtime.z01~z04` 是否完整
-3. 手动解压命令：
+2. 如果自动解压失败，请检查压缩文件是否完整
+3. **Windows**: 手动解压命令：
    ```bat
    powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk" -OutputDir "." -ArchiveName "runtime"
+   ```
+4. **macOS**: 手动解压命令：
+   ```bash
+   # 如果是 tar.gz 文件
+   tar -xzf native_sdk/runtime.tar.gz -C .
+
+   # 如果是分片压缩文件，需要先合并然后解压
+   cat native_sdk/runtime.z* > runtime.tar.gz
+   tar -xzf runtime.tar.gz
    ```
 
 ### Q5: 解压失败

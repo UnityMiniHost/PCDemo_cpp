@@ -16,6 +16,10 @@ scripts\run.bat
 
 # 清理
 scripts\clean.bat
+
+# 打包SDK（用于分发）
+scripts\pack.bat
+
 ```
 
 ## 脚本说明
@@ -41,6 +45,12 @@ scripts\clean.bat
 - 删除build目录和demo.exe
 - 可选删除runtime和logs
 - 交互式确认
+
+### pack.bat
+- 压缩host和runtime目录到native_sdk
+- 自动创建native_sdk目录
+- 自动处理大文件分片（>50MB）
+- 用于SDK打包和分发
 
 ### compress_split.ps1
 - PowerShell脚本，用于压缩目录并分片
@@ -105,15 +115,16 @@ cmake -G "Visual Studio 17 2022" -A x64 ..
 
 ## 高级用法
 
-### 重新压缩SDK文件
+### 打包SDK用于分发
 
-如果您更新了host或runtime目录，可以重新压缩：
+如果您更新了host或runtime目录，需要重新打包：
 
 ```bat
-# 压缩host目录
-powershell -ExecutionPolicy Bypass -File "scripts\compress_split.ps1" -SourceDir "host" -OutputDir "native_sdk" -ArchiveName "host" -ChunkSizeMB 50
+# 方式1：使用pack.bat（推荐）
+scripts\pack.bat
 
-# 压缩runtime目录（自动分片）
+# 方式2：手动压缩单个目录
+powershell -ExecutionPolicy Bypass -File "scripts\compress_split.ps1" -SourceDir "host" -OutputDir "native_sdk" -ArchiveName "host" -ChunkSizeMB 50
 powershell -ExecutionPolicy Bypass -File "scripts\compress_split.ps1" -SourceDir "runtime" -OutputDir "native_sdk" -ArchiveName "runtime" -ChunkSizeMB 50
 ```
 

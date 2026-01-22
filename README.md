@@ -22,16 +22,23 @@ demo/
 │   ├── IAppletManagerV3.h         # Applet manager interface
 │   ├── ICoreServiceHandler.h      # Event handler interface
 │   └── WIUnknown.h                # Base interface
-├── native_sdk/            # Compressed SDK files (provided by vendor)
-│   ├── host.zip               # SDK core DLL (compressed)
-│   ├── runtime.z01            # Runtime files (split archive part 1)
-│   ├── runtime.z02            # Runtime files (split archive part 2)
-│   ├── runtime.z03            # Runtime files (split archive part 3)
-│   └── runtime.z04            # Runtime files (split archive part 4)
-├── host/                  # DLL directory (auto-extracted from native_sdk)
-│   └── webglhost_export.dll       # SDK core DLL
-├── runtime/               # Runtime environment (auto-extracted from native_sdk)
-│   └── webglhost-runtime.exe      # Runtime executable
+├── native_sdk/            # Compressed SDK files (platform-specific)
+│   ├── mac/                   # macOS packages
+│   │   ├── host.tar.gz               # SDK library
+│   │   ├── runtime-arm64.tar.gz.01/02/03  # arm64 runtime (split)
+│   │   ├── runtime-x64.tar.gz.01/02/03    # x64 runtime (split)
+│   │   └── version.json              # Version info
+│   └── windows/               # Windows packages
+│       ├── host.zip                  # SDK library
+│       ├── runtime.z01/z02/z03       # Runtime (split)
+│       └── version.json              # Version info
+├── host/                  # SDK library (auto-extracted)
+│   ├── webglhost_export.dll       # Windows
+│   └── libwebglhost_export.dylib  # macOS
+├── runtime/               # Runtime environment (auto-extracted)
+│   ├── arm64/webglhost-runtime.app    # macOS arm64
+│   ├── x64/webglhost-runtime.app      # macOS x64
+│   └── webglhost-runtime.exe          # Windows
 ├── README.md              # This file
 ├── demo.cpp               # Demo source code
 ├── CMakeLists.txt         # CMake configuration
@@ -66,15 +73,31 @@ scripts\run.bat
 
 Before running the demo, ensure the SDK package is in place:
 
-1. **SDK Package**: The `native_sdk/` directory contains compressed SDK files:
-   - `host.zip` - The SDK core DLL (compressed)
-   - `runtime.z01` ~ `runtime.z04` - Runtime environment (split compressed archive)
+1. **SDK Package**: The `native_sdk/` directory contains platform-specific compressed SDK files:
+   
+   **macOS** (`native_sdk/mac/`):
+   - `host.tar.gz` - SDK library (libwebglhost_export.dylib)
+   - `runtime-arm64.tar.gz.01/02/03` - arm64 runtime (split archives)
+   - `runtime-x64.tar.gz.01/02/03` - x64 runtime (split archives)
+   - `version.json` - Version information
+   
+   **Windows** (`native_sdk/windows/`):
+   - `host.zip` - SDK library (webglhost_export.dll)
+   - `runtime.z01/02/03` - Runtime environment (split archives)
+   - `version.json` - Version information
 
 2. **Auto-Extraction**: The build and run scripts will automatically extract these files to:
-   - `host/` directory - Contains `webglhost_export.dll`
-   - `runtime/` directory - Contains `webglhost-runtime.exe` and other runtime files
+   
+   **macOS**:
+   - `host/libwebglhost_export.dylib`
+   - `runtime/arm64/webglhost-runtime.app`
+   - `runtime/x64/webglhost-runtime.app`
+   
+   **Windows**:
+   - `host/webglhost_export.dll`
+   - `runtime/webglhost-runtime.exe` and dependencies
 
-**Note**: The compressed files are split into chunks of 50MB or less for easier distribution and version control. The extraction process is fully automated.
+**Note**: Runtime packages are split into chunks of ≤50MB for easier distribution and version control. The extraction process is fully automated by the build scripts.
 
 ## Scripts Reference
 
@@ -144,19 +167,37 @@ Contact your SDK provider to obtain these credentials.
 ## Troubleshooting
 
 ### Error: DLL not found
-The scripts will automatically extract `host/webglhost_export.dll` from `native_sdk/host.zip`. If the extraction fails, ensure `native_sdk/host.zip` exists and is not corrupted.
+The scripts will automatically extract SDK libraries from `native_sdk/mac/host.tar.gz` or `native_sdk/windows/host.zip`. If extraction fails, ensure the platform-specific package exists and is not corrupted.
 
 ### Error: Runtime not found
-The scripts will automatically extract the runtime from `native_sdk/runtime.z01~z04`. If the extraction fails, ensure all split archive files exist and are not corrupted.
+The scripts will automatically extract the runtime from split archives. If extraction fails, ensure all split archive files exist and are not corrupted:
+- **macOS**: `runtime-arm64.tar.gz.01/02/03` or `runtime-x64.tar.gz.01/02/03`
+- **Windows**: `runtime.z01/02/03`
 
 ### Error: Extraction failed
 If automatic extraction fails:
-1. Verify all files in `native_sdk/` directory are present and not corrupted
+
+**macOS**:
+1. Verify all files in `native_sdk/mac/` directory are present
+2. Manually extract using the decompression script:
+   ```bash
+   # Extract host
+   cd native_sdk/mac && tar -xzf host.tar.gz -C ../../host/
+   
+   # Extract arm64 runtime (combine split files first)
+   cat runtime-arm64.tar.gz.* | tar -xzf - -C ../../runtime/arm64/
+   
+   # Or use the decompression script
+   bash scripts/compress_split.sh --source native_sdk/mac --output runtime/arm64 --name runtime-arm64
+   ```
+
+**Windows**:
+1. Verify all files in `native_sdk\windows\` directory are present
 2. Check that PowerShell execution policy allows script execution
-3. Manually extract files using the decompression script:
+3. Manually extract files:
    ```bat
-   powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk" -OutputDir "." -ArchiveName "host"
-   powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk" -OutputDir "." -ArchiveName "runtime"
+   powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk\windows" -OutputDir "host" -ArchiveName "host"
+   powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk\windows" -OutputDir "runtime" -ArchiveName "runtime"
    ```
 
 ### Error: CMake not found
@@ -175,6 +216,31 @@ Runtime logs are automatically saved to the `logs/` directory with timestamps:
 - Location: `demo/logs/`
 
 Check the latest log file for runtime debugging information.
+
+## Features
+
+### Custom JsApi Handler
+
+The demo demonstrates how to implement a custom JsApi handler to handle game authentication requests:
+
+1. **JsApi Handler Registration**: The demo registers a custom handler via `SetJsApiHandler()` to intercept and process JsApi calls from the game.
+
+2. **TJLoginHost Authentication**: When the game calls `tj.login()`, the demo's `OnJsApiHandler` function:
+   - Receives the authentication request with accessToken
+   - Performs HTTP authentication via Unity Connect API
+   - Returns the LSToken to the game
+
+3. **HTTP Request Implementation**: Uses WinHTTP library to make HTTPS requests to external APIs.
+
+### Key Components
+
+**demo.cpp** implements:
+- `OnJsApiHandler()` - Handles JsApi calls (TJLoginHost, loadRewardAd, showRewardAd)
+- `PerformUnityConnectAuth()` - Unity Connect authentication
+- `HandleLoadRewardAd()` / `HandleShowRewardAd()` - Reward ad handling
+- `HttpGet()` - HTTPS GET request implementation
+- `UrlEncode()` - URL encoding helper
+- `ExtractJsonStringValue()` - Simple JSON parser
 
 ## Development
 
@@ -200,4 +266,49 @@ const char* LAUNCH_KEY = "your-launch-key";
 ```
 
 Then rebuild and run.
+
+### Supported JsApi Handlers
+
+The demo currently supports the following JsApi handlers:
+
+1. **TJLoginHost** - Unity Connect authentication
+   - Called when game invokes `tj.login()`
+   - Performs HTTP authentication and returns LSToken
+
+2. **loadRewardAd** - Load reward advertisement
+   - Prepares a reward ad for display
+
+3. **showRewardAd** - Show reward advertisement
+   - Displays the loaded reward ad to user
+
+#### Handler Implementation Example
+
+The handler is registered in main():
+```cpp
+appletManager->SetJsApiHandler(OnJsApiHandler);
+```
+
+Handler dispatches to specific functions based on api_name:
+```cpp
+bool OnJsApiHandler(const char* app_id, const char* api_name, 
+                   const char* data, size_t data_size, int task_id) {
+    if (strcmp(api_name, "TJLoginHost") == 0) {
+        return HandleTJLoginHost(app_id, dataStr, task_id);
+    }
+    if (strcmp(api_name, "loadRewardAd") == 0) {
+        return HandleLoadRewardAd(app_id, dataStr, task_id);
+    }
+    if (strcmp(api_name, "showRewardAd") == 0) {
+        return HandleShowRewardAd(app_id, dataStr, task_id);
+    }
+    // Return false for unhandled APIs
+    return false;
+}
+```
+
+#### Response Format
+
+All responses must be JSON:
+- Success: `{"success":true,"result":{...}}`
+- Error: `{"success":false,"errorCode":"CODE","error":"message"}`
 

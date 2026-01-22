@@ -1,0 +1,11 @@
+{
+  "version": "1.0.1",
+  "buildDate": "2026-01-22",
+  "buildTime": "15:08:08",
+  "buildDateTime": "2026-01-22 15:08:08",
+  "commitHash": "17d4dc1",
+  "commitDate": "2026-01-22 14:55:19 +0800",
+  "branch": "jason/optimize_cpp_build",
+  "platform": "darwin",
+  "arch": "arm64"
+}
