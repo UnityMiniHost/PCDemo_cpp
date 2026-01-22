@@ -11,8 +11,8 @@ cd /d %~dp0\..
 REM Check and extract host directory if needed
 if not exist "host" (
     echo [INFO] host directory not found, extracting from native_sdk...
-    if exist "native_sdk\host.zip" (
-        powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk" -OutputDir "." -ArchiveName "host"
+    if exist "native_sdk\windows\host.zip" (
+        powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk\windows" -OutputDir "." -ArchiveName "host"
         if %ERRORLEVEL% NEQ 0 (
             echo [ERROR] Failed to extract host directory!
             pause
@@ -20,7 +20,7 @@ if not exist "host" (
         )
         echo [OK] host directory extracted successfully
     ) else (
-        echo [ERROR] native_sdk\host.zip not found!
+        echo [ERROR] native_sdk\windows\host.zip not found!
         echo Please ensure the SDK package is complete.
         pause
         exit /b 1
@@ -30,16 +30,16 @@ if not exist "host" (
 REM Check and extract runtime directory if needed
 if not exist "runtime" (
     echo [INFO] runtime directory not found, extracting from native_sdk...
-    if exist "native_sdk\runtime.z01" (
-        powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk" -OutputDir "." -ArchiveName "runtime"
+    if exist "native_sdk\windows\runtime.z01" (
+        powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk\windows" -OutputDir "." -ArchiveName "runtime"
         if %ERRORLEVEL% NEQ 0 (
             echo [ERROR] Failed to extract runtime directory!
             pause
             exit /b 1
         )
         echo [OK] runtime directory extracted successfully
-    ) else if exist "native_sdk\runtime.zip" (
-        powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk" -OutputDir "." -ArchiveName "runtime"
+    ) else if exist "native_sdk\windows\runtime.zip" (
+        powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk\windows" -OutputDir "." -ArchiveName "runtime"
         if %ERRORLEVEL% NEQ 0 (
             echo [ERROR] Failed to extract runtime directory!
             pause
@@ -47,7 +47,7 @@ if not exist "runtime" (
         )
         echo [OK] runtime directory extracted successfully
     ) else (
-        echo [ERROR] native_sdk\runtime archive not found!
+        echo [ERROR] native_sdk\windows\runtime archive not found!
         echo Please ensure the SDK package is complete.
         pause
         exit /b 1

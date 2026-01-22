@@ -71,23 +71,23 @@ scripts\pack.bat
 ## 依赖要求
 
 SDK文件以压缩包形式存储在 `native_sdk/` 目录：
-1. `native_sdk/host.zip` - SDK核心DLL（压缩）
-2. `native_sdk/runtime.z01~z04` - 运行时环境（分片压缩）
+1. `native_sdk/windows/host.zip` - SDK核心DLL（压缩）
+2. `native_sdk/windows/runtime.z01~z04` - 运行时环境（分片压缩）
 
 **自动解压**: 构建和运行脚本会自动检查并解压这些文件到 `host/` 和 `runtime/` 目录。
 
 ## 故障排除
 
 ### DLL未找到
-- 脚本会自动从 `native_sdk/host.zip` 解压
-- 如果自动解压失败，检查 `native_sdk/host.zip` 是否存在
+- 脚本会自动从 `native_sdk/windows/host.zip` 解压
+- 如果自动解压失败，检查 `native_sdk/windows/host.zip` 是否存在
 - 手动解压：
   ```bat
   powershell -ExecutionPolicy Bypass -File "scripts\decompress_split.ps1" -SourceDir "native_sdk" -OutputDir "." -ArchiveName "host"
   ```
 
 ### Runtime未找到
-- 脚本会自动从 `native_sdk/runtime.z01~z04` 解压
+- 脚本会自动从 `native_sdk/windows/runtime.z01~z04` 解压
 - 如果自动解压失败，检查所有分片文件是否完整
 - 手动解压：
   ```bat
